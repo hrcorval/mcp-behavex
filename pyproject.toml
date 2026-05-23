@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-behavex"
+version = "0.1.0"
+description = "MCP server for BehaveX — run BDD tests and inspect features from AI agents"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    { name = "Hernan Rey", email = "behavex_users@googlegroups.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.0.0",
+    "behavex[api]>=4.7.0",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Testing",
+]
+
+[project.urls]
+homepage = "https://github.com/hrcorval/mcp-behavex"
+
+[project.scripts]
+mcp-behavex = "mcp_behavex.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# TestPyPI index — only for behavex 4.7.0 pre-release; remove once 4.7.0 is on PyPI
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+explicit = true
+
+[tool.uv.sources]
+behavex = { index = "testpypi" }
+
+[tool.uv]
+prerelease = "allow"
