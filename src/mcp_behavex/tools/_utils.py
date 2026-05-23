@@ -41,9 +41,18 @@ def discover_step_files(paths: List[str]) -> List[str]:
     files: List[str] = []
     for path in paths:
         if os.path.isfile(path):
-            files.extend(glob.glob(os.path.join(os.path.dirname(path), "steps", "*.py")))
+            candidate_dirs = [os.path.join(os.path.dirname(path), "steps")]
         elif os.path.isdir(path):
-            files.extend(glob.glob(os.path.join(path, "**/steps/*.py"), recursive=True))
+            candidate_dirs = glob.glob(os.path.join(path, "**/steps"), recursive=True)
+        else:
+            continue
+        for steps_dir in candidate_dirs:
+            if not os.path.isdir(steps_dir):
+                continue
+            # Direct children
+            files.extend(glob.glob(os.path.join(steps_dir, "*.py")))
+            # Any subdirectory depth within steps/
+            files.extend(glob.glob(os.path.join(steps_dir, "**", "*.py"), recursive=True))
     return list(dict.fromkeys(files))
 
 
