@@ -83,16 +83,17 @@ def run_tests(
     finally:
         _execution_lock.release()
 
-    return {
+    summary = result.summary
+    out: dict = {
         "run_id": result.run_id,
         "exit_code": result.exit_code,
         "status": "passed" if result.passed else "failed",
         "output_folder": result.output_folder,
         "summary": {
-            "total": result.summary.total,
-            "passed": result.summary.passed,
-            "failed": result.summary.failed,
-            "skipped": result.summary.skipped,
+            "total": summary.total,
+            "passed": summary.passed,
+            "failed": summary.failed,
+            "skipped": summary.skipped,
         },
         "failed_scenarios": [
             {
@@ -104,6 +105,14 @@ def run_tests(
             for s in result.failed_scenarios
         ],
     }
+    if summary.total == 0 and not dry_run:
+        out["no_scenarios_matched"] = True
+        out["warning"] = (
+            "No scenarios were executed. If you specified tags, verify they exist "
+            "in the suite (use list_tags to check). A run with zero scenarios "
+            "always exits with code 0 regardless of the tag filter."
+        )
+    return out
 
 
 def _default_paths() -> List[str]:
