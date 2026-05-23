@@ -3,13 +3,18 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from mcp_behavex.tools._utils import default_paths, discover_feature_files, parse_feature_file
+from mcp_behavex.tools._utils import (
+    default_paths,
+    discover_feature_files,
+    parse_feature_file,
+    scan_files,
+)
 
 
 def list_features(
     paths: Annotated[
         Optional[List[str]],
-        "Feature file or directory paths to scan. Defaults to BEHAVEX_FEATURES_PATH env var.",
+        "Feature file or directory paths to scan. Defaults to BEHAVEX_FEATURES_PATH env var. Narrow this when the full suite times out.",
     ] = None,
     tags: Annotated[
         Optional[List[str]],
@@ -18,25 +23,25 @@ def list_features(
 ) -> dict:
     """List all feature files and their scenarios without executing any tests.
 
+    Results are mtime-cached — repeated calls are near-instant for unchanged files.
+    Returns partial results with a warning if scanning exceeds the time limit.
+
     Returns a dict with:
     - features: list of {name, filename, tags, scenarios}
-      - scenarios: list of {name, line, tags}
     - total_features: int
     - total_scenarios: int
+    - partial: true if the scan was cut short by the time limit
+    - warning: explanation when partial=true
     """
     resolved_paths = paths or default_paths()
-    feature_files = discover_feature_files(resolved_paths)
+    filepaths = sorted(discover_feature_files(resolved_paths))
+    tag_filter = {t.lstrip("@") for t in tags} if tags else None
 
-    tag_filter = set(t.lstrip("@") for t in tags) if tags else None
+    parsed_features, partial, warning = scan_files(filepaths, parse_feature_file)
 
     features = []
     total_scenarios = 0
-
-    for filepath in sorted(feature_files):
-        parsed = parse_feature_file(filepath)
-        if parsed is None:
-            continue
-
+    for parsed in parsed_features:
         scenarios = parsed["scenarios"]
         if tag_filter:
             scenarios = [
@@ -44,10 +49,8 @@ def list_features(
                 if tag_filter.intersection(t.lstrip("@") for t in s["tags"])
                 or tag_filter.intersection(t.lstrip("@") for t in parsed["tags"])
             ]
-
-        if tag_filter and not scenarios:
-            continue
-
+            if not scenarios:
+                continue
         features.append({
             "name": parsed["name"],
             "filename": parsed["filename"],
@@ -56,8 +59,12 @@ def list_features(
         })
         total_scenarios += len(scenarios)
 
-    return {
+    out = {
         "features": features,
         "total_features": len(features),
         "total_scenarios": total_scenarios,
+        "partial": partial,
     }
+    if warning:
+        out["warning"] = warning
+    return out

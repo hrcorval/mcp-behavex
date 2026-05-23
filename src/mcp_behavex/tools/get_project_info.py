@@ -4,7 +4,12 @@ from __future__ import annotations
 import os
 from typing import Annotated, List, Optional
 
-from mcp_behavex.tools._utils import default_paths, discover_feature_files, parse_feature_file
+from mcp_behavex.tools._utils import (
+    default_paths,
+    discover_feature_files,
+    parse_feature_file,
+    scan_files,
+)
 
 
 def get_project_info(
@@ -17,7 +22,7 @@ def get_project_info(
 
     Call this before run_tests when you are unsure how to run the suite — it tells
     you how many scenarios exist, what parallel settings to use, and what the current
-    environment is configured to do.
+    environment is configured to do. Results are mtime-cached for fast repeated calls.
 
     Returns a dict with:
     - config: current environment configuration (paths, output folder)
@@ -26,23 +31,17 @@ def get_project_info(
     - guidance: human-readable explanation of the recommendation
     """
     resolved_paths = paths or default_paths()
-    feature_files = discover_feature_files(resolved_paths)
+    filepaths = discover_feature_files(resolved_paths)
 
-    total_features = 0
-    total_scenarios = 0
+    parsed_features, _, _ = scan_files(filepaths, parse_feature_file)
+
+    total_features = len(parsed_features)
+    total_scenarios = sum(len(p["scenarios"]) for p in parsed_features)
     all_tags: set[str] = set()
-
-    for filepath in feature_files:
-        parsed = parse_feature_file(filepath)
-        if parsed is None:
-            continue
-        total_features += 1
-        total_scenarios += len(parsed["scenarios"])
-        for t in parsed["tags"]:
-            all_tags.add(t.lstrip("@"))
-        for s in parsed["scenarios"]:
-            for t in s["tags"]:
-                all_tags.add(t.lstrip("@"))
+    for p in parsed_features:
+        all_tags.update(t.lstrip("@") for t in p["tags"])
+        for s in p["scenarios"]:
+            all_tags.update(t.lstrip("@") for t in s["tags"])
 
     recommendation, guidance = _recommend(total_scenarios, total_features)
     recommendation["paths"] = resolved_paths
@@ -69,50 +68,23 @@ def _recommend(total_scenarios: int, total_features: int) -> tuple[dict, str]:
             {"no_report": True},
             "No scenarios found. Check that BEHAVEX_FEATURES_PATH points to the correct directory.",
         )
-
     if total_scenarios < 10:
-        params = {
-            "parallel_processes": None,
-            "parallel_scheme": None,
-            "no_report": False,
-        }
-        guidance = (
-            f"{total_scenarios} scenarios — run sequentially (no parallel). "
-            "Parallel overhead is not worth it for small suites."
+        return (
+            {"parallel_processes": None, "parallel_scheme": None, "no_report": False},
+            f"{total_scenarios} scenarios — run sequentially (no parallel). Overhead not worth it for small suites.",
         )
-
-    elif total_scenarios < 50:
-        params = {
-            "parallel_processes": 2,
-            "parallel_scheme": "scenario",
-            "no_report": False,
-        }
-        guidance = (
-            f"{total_scenarios} scenarios — use parallel_processes=2, parallel_scheme='scenario'. "
-            "Scenario-level parallelism distributes individual scenarios across workers."
+    if total_scenarios < 50:
+        return (
+            {"parallel_processes": 2, "parallel_scheme": "scenario", "no_report": False},
+            f"{total_scenarios} scenarios — use parallel_processes=2, parallel_scheme='scenario'.",
         )
-
-    elif total_features >= 10 and total_scenarios / total_features >= 5:
-        params = {
-            "parallel_processes": 4,
-            "parallel_scheme": "feature",
-            "no_report": False,
-        }
-        guidance = (
+    if total_features >= 10 and total_scenarios / total_features >= 5:
+        return (
+            {"parallel_processes": 4, "parallel_scheme": "feature", "no_report": False},
             f"{total_scenarios} scenarios across {total_features} features — "
-            "use parallel_processes=4, parallel_scheme='feature'. "
-            "Feature-level parallelism works well when features are large and numerous."
+            "use parallel_processes=4, parallel_scheme='feature'.",
         )
-
-    else:
-        params = {
-            "parallel_processes": 4,
-            "parallel_scheme": "scenario",
-            "no_report": False,
-        }
-        guidance = (
-            f"{total_scenarios} scenarios — use parallel_processes=4, parallel_scheme='scenario'. "
-            "Scenario-level parallelism gives the best distribution for large suites."
-        )
-
-    return params, guidance
+    return (
+        {"parallel_processes": 4, "parallel_scheme": "scenario", "no_report": False},
+        f"{total_scenarios} scenarios — use parallel_processes=4, parallel_scheme='scenario'.",
+    )
