@@ -29,7 +29,7 @@ Runs BehaveX tests and returns a structured result.
 | `dry_run` | `bool` | List scenarios without executing steps. |
 | `stop` | `bool` | Stop after the first failure. |
 
-**Returns:** `{run_id, exit_code, passed, summary, failed_scenarios, output_folder}`
+**Returns:** `{run_id, exit_code, status, summary, failed_scenarios, output_folder}`
 
 ### `list_features`
 

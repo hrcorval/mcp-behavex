@@ -44,7 +44,7 @@ def run_tests(
     Returns a dict with:
     - run_id: unique UUID for this run
     - exit_code: 0 = all passed, 1 = failures or errors
-    - passed: bool shorthand for exit_code == 0
+    - status: 'passed' or 'failed'
     - summary: {total, passed, failed, skipped} scenario counts
     - failed_scenarios: list of {name, feature, status, error_msg}
     - output_folder: path where reports were written (empty if no_report=True)
@@ -69,7 +69,7 @@ def run_tests(
     return {
         "run_id": result.run_id,
         "exit_code": result.exit_code,
-        "passed": result.passed,
+        "status": "passed" if result.passed else "failed",
         "output_folder": result.output_folder,
         "summary": {
             "total": result.summary.total,
