@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import contextlib
 import os
+import sys
 from typing import Annotated, List, Optional
 
 
@@ -64,7 +66,10 @@ def run_tests(
         dry_run=dry_run,
         stop=stop,
     )
-    result = runner.run()
+    # Redirect stdout to stderr during the run: BehaveX prints progress/env tables
+    # to stdout, which would corrupt the MCP stdio JSON-RPC stream.
+    with contextlib.redirect_stdout(sys.stderr):
+        result = runner.run()
 
     return {
         "run_id": result.run_id,
