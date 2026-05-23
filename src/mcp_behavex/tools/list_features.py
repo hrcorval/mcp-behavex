@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import glob
-import os
 from typing import Annotated, List, Optional
+
+from mcp_behavex.tools._utils import default_paths, discover_feature_files, parse_feature_file
 
 
 def list_features(
@@ -24,8 +24,8 @@ def list_features(
     - total_features: int
     - total_scenarios: int
     """
-    resolved_paths = paths or _default_paths()
-    feature_files = _discover_feature_files(resolved_paths)
+    resolved_paths = paths or default_paths()
+    feature_files = discover_feature_files(resolved_paths)
 
     tag_filter = set(t.lstrip("@") for t in tags) if tags else None
 
@@ -33,7 +33,7 @@ def list_features(
     total_scenarios = 0
 
     for filepath in sorted(feature_files):
-        parsed = _parse_feature_file(filepath)
+        parsed = parse_feature_file(filepath)
         if parsed is None:
             continue
 
@@ -61,49 +61,3 @@ def list_features(
         "total_features": len(features),
         "total_scenarios": total_scenarios,
     }
-
-
-def _default_paths() -> List[str]:
-    env = os.environ.get("BEHAVEX_FEATURES_PATH", "")
-    if env:
-        return [p.strip() for p in env.split(",") if p.strip()]
-    return ["features"]
-
-
-def _discover_feature_files(paths: List[str]) -> List[str]:
-    files: List[str] = []
-    for path in paths:
-        if os.path.isfile(path) and path.endswith(".feature"):
-            files.append(path)
-        elif os.path.isdir(path):
-            files.extend(glob.glob(os.path.join(path, "**", "*.feature"), recursive=True))
-        else:
-            files.extend(glob.glob(path, recursive=True))
-    return list(dict.fromkeys(files))  # deduplicate, preserve order
-
-
-def _parse_feature_file(filepath: str) -> Optional[dict]:
-    try:
-        from behave.parser import Parser
-        with open(filepath, encoding="utf-8") as f:
-            text = f.read()
-        parser = Parser(language="en")
-        feature = parser.parse(text, filename=filepath)
-        if feature is None:
-            return None
-        scenarios = []
-        for scenario in feature.scenarios:
-            # ScenarioOutline expands into multiple examples — collect the outline itself
-            scenarios.append({
-                "name": scenario.name,
-                "line": scenario.line,
-                "tags": [str(t) for t in scenario.tags],
-            })
-        return {
-            "name": feature.name,
-            "filename": filepath,
-            "tags": [str(t) for t in feature.tags],
-            "scenarios": scenarios,
-        }
-    except Exception:
-        return None
