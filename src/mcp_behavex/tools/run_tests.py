@@ -4,7 +4,11 @@ from __future__ import annotations
 import contextlib
 import os
 import sys
+import threading
 from typing import Annotated, List, Optional
+
+# BehaveX uses process-wide globals — only one run at a time is safe.
+_execution_lock = threading.Lock()
 
 
 def run_tests(
@@ -51,25 +55,33 @@ def run_tests(
     - failed_scenarios: list of {name, feature, status, error_msg}
     - output_folder: path where reports were written (empty if no_report=True)
     """
-    from behavex import BehaveXRunner
+    if not _execution_lock.acquire(blocking=False):
+        return {
+            "error": "A test run is already in progress. BehaveX uses process-wide state and cannot run concurrently. Wait for the current run to finish before calling run_tests again.",
+            "status": "busy",
+        }
+    try:
+        from behavex import BehaveXRunner
 
-    resolved_paths = paths or _default_paths()
-    resolved_output = output_folder or os.environ.get("BEHAVEX_OUTPUT_FOLDER", "")
+        resolved_paths = paths or _default_paths()
+        resolved_output = output_folder or os.environ.get("BEHAVEX_OUTPUT_FOLDER", "")
 
-    runner = BehaveXRunner(
-        paths=resolved_paths,
-        tags=tags or [],
-        parallel_processes=parallel_processes,
-        parallel_scheme=parallel_scheme,
-        output_folder=resolved_output,
-        no_report=no_report,
-        dry_run=dry_run,
-        stop=stop,
-    )
-    # Redirect stdout to stderr during the run: BehaveX prints progress/env tables
-    # to stdout, which would corrupt the MCP stdio JSON-RPC stream.
-    with contextlib.redirect_stdout(sys.stderr):
-        result = runner.run()
+        runner = BehaveXRunner(
+            paths=resolved_paths,
+            tags=tags or [],
+            parallel_processes=parallel_processes,
+            parallel_scheme=parallel_scheme,
+            output_folder=resolved_output,
+            no_report=no_report,
+            dry_run=dry_run,
+            stop=stop,
+        )
+        # Redirect stdout to stderr during the run: BehaveX prints progress/env tables
+        # to stdout, which would corrupt the MCP stdio JSON-RPC stream.
+        with contextlib.redirect_stdout(sys.stderr):
+            result = runner.run()
+    finally:
+        _execution_lock.release()
 
     return {
         "run_id": result.run_id,
