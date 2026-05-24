@@ -150,6 +150,8 @@ def _build_result(result, dry_run: bool) -> dict:
             "errored": summary.errored,
             "skipped": summary.skipped,
             "manual": summary.manual,
+            "muted": summary.muted,
+            "untested": summary.untested,
         },
         "failed_scenarios": [
             {
@@ -159,6 +161,24 @@ def _build_result(result, dry_run: bool) -> dict:
                 "error_msg": s.error_msg,
             }
             for s in result.failed_scenarios
+        ],
+        "errored_scenarios": [
+            {
+                "name": s.name,
+                "feature": s.feature,
+                "status": s.status,
+                "error_msg": s.error_msg,
+            }
+            for s in result.errored_scenarios
+        ],
+        "muted_scenarios": [
+            {
+                "name": s.name,
+                "feature": s.feature,
+                "status": s.status,
+                "error_msg": s.error_msg,
+            }
+            for s in result.muted_scenarios
         ],
     }
     if summary.total == 0 and not dry_run:
