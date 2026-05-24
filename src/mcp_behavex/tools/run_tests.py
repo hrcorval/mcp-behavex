@@ -71,9 +71,13 @@ async def run_tests(
         resolved_paths = paths or _default_paths()
         resolved_output = output_folder or os.environ.get("BEHAVEX_OUTPUT_FOLDER", "")
 
+        # Always exclude @MUTE scenarios — they are tagged to be silenced and
+        # should not consume CI time or pollute agent results.
+        resolved_tags = list(tags or []) + ['~@MUTE']
+
         runner = BehaveXRunner(
             paths=resolved_paths,
-            tags=tags or [],
+            tags=resolved_tags,
             parallel_processes=parallel_processes,
             parallel_scheme=parallel_scheme,
             output_folder=resolved_output,
@@ -148,6 +152,7 @@ def _build_result(result, dry_run: bool) -> dict:
             "passed": summary.passed,
             "failed": summary.failed,
             "skipped": summary.skipped,
+            "not_automated": summary.not_automated,
         },
         "failed_scenarios": [
             {
