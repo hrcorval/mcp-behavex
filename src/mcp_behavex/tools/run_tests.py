@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import os
 import sys
-import threading
+import uuid
 from typing import Annotated, List, Optional
 
-# BehaveX uses process-wide globals — only one run at a time is safe.
-_execution_lock = threading.Lock()
+from mcp_behavex.tools import _state
 
 
-def run_tests(
+async def run_tests(
     paths: Annotated[
         Optional[List[str]],
         "Feature file or directory paths to run. Defaults to BEHAVEX_FEATURES_PATH env var.",
@@ -50,15 +50,20 @@ def run_tests(
     Returns a dict with:
     - run_id: unique UUID for this run
     - exit_code: 0 = all passed, 1 = failures or errors
-    - status: 'passed' or 'failed'
-    - summary: {total, passed, failed, skipped} scenario counts
+    - status: 'passed', 'failed', or 'stopped'
+    - summary: {total, passed, failed, errored, skipped, manual} scenario counts
     - failed_scenarios: list of {name, feature, status, error_msg}
     - output_folder: path where reports were written (empty if no_report=True)
     """
-    if not _execution_lock.acquire(blocking=False):
+    if not _state.execution_lock.acquire(blocking=False):
         return {
-            "error": "A test run is already in progress. BehaveX uses process-wide state and cannot run concurrently. Wait for the current run to finish before calling run_tests again.",
+            "error": (
+                "A test run is already in progress. BehaveX uses process-wide state "
+                "and cannot run concurrently. Call stop_run to cancel it, or wait for "
+                "it to finish."
+            ),
             "status": "busy",
+            "active_run_id": _state.active_run_id,
         }
     try:
         from behavex import BehaveXRunner
@@ -76,13 +81,62 @@ def run_tests(
             dry_run=dry_run,
             stop=stop,
         )
-        # Redirect stdout to stderr during the run: BehaveX prints progress/env tables
-        # to stdout, which would corrupt the MCP stdio JSON-RPC stream.
-        with contextlib.redirect_stdout(sys.stderr):
-            result = runner.run()
-    finally:
-        _execution_lock.release()
 
+        session_id = str(uuid.uuid4())
+        _state.stop_event.clear()
+        _state.active_run_id = session_id
+        _state.active_runner = runner
+
+        loop = asyncio.get_running_loop()
+
+        def _run_sync():
+            with contextlib.redirect_stdout(sys.stderr):
+                return runner.run()
+
+        # Run the blocking BehaveX call in a thread so the event loop stays
+        # free to handle stop_run requests while tests are executing.
+        future = loop.run_in_executor(None, _run_sync)
+
+        try:
+            # asyncio.shield keeps the thread future alive if the outer task is
+            # cancelled (e.g. Claude Desktop closes mid-run), so we can still
+            # signal a clean stop and let in-flight scenarios finish.
+            result = await asyncio.shield(future)
+        except asyncio.CancelledError:
+            # Client disconnected — signal BehaveX to stop the worker pool.
+            runner.stop()
+            _state.stop_event.set()
+            # Re-raise so FastMCP knows this task was cancelled. The thread
+            # will complete on its own after runner.stop() drains in-flight work.
+            raise
+        except Exception:
+            if _state.stop_event.is_set():
+                # stop_run was called and caused the thread to raise.
+                return {
+                    "run_id": session_id,
+                    "status": "stopped",
+                    "message": "Run was cancelled via stop_run.",
+                }
+            raise
+        finally:
+            _state.active_runner = None
+            _state.active_run_id = None
+    finally:
+        _state.execution_lock.release()
+
+    if _state.stop_event.is_set():
+        # stop_run was called but the thread returned cleanly (parallel
+        # executor drained without raising). Return partial results.
+        return {
+            "status": "stopped",
+            "message": "Run was cancelled via stop_run. Results below reflect partial execution.",
+            **_build_result(result, dry_run),
+        }
+
+    return _build_result(result, dry_run)
+
+
+def _build_result(result, dry_run: bool) -> dict:
     summary = result.summary
     out: dict = {
         "run_id": result.run_id,

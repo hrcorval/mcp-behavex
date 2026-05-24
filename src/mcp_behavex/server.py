@@ -10,6 +10,7 @@ from mcp_behavex.tools.list_features import list_features
 from mcp_behavex.tools.list_steps import list_steps
 from mcp_behavex.tools.list_tags import list_tags
 from mcp_behavex.tools.run_tests import run_tests
+from mcp_behavex.tools.stop_run import stop_run
 
 mcp = FastMCP(
     name="mcp-behavex",
@@ -32,6 +33,9 @@ BehaveX MCP server for running and inspecting BDD test suites.
 4. **After a run**, call coverage_by_tag to show pass/fail breakdown per tag. It reads the
    last report.json automatically from BEHAVEX_OUTPUT_FOLDER.
 
+5. **To cancel an in-progress run**, call stop_run. For parallel runs it shuts down the
+   worker pool immediately; for single-process runs it signals after the current scenario.
+
 ## Parallel execution rules
 
 - parallel_scheme='scenario' distributes individual scenarios across workers — use when
@@ -51,6 +55,7 @@ BehaveX MCP server for running and inspecting BDD test suites.
 
 mcp.tool()(get_project_info)
 mcp.tool()(run_tests)
+mcp.tool()(stop_run)
 mcp.tool()(list_features)
 mcp.tool()(list_tags)
 mcp.tool()(list_steps)
