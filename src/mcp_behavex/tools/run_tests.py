@@ -151,8 +151,10 @@ def _build_result(result, dry_run: bool) -> dict:
             "total": summary.total,
             "passed": summary.passed,
             "failed": summary.failed,
+            "error": summary.error,
             "skipped": summary.skipped,
-            "not_automated": summary.not_automated,
+            "untested": summary.untested,
+            "manual": summary.manual,
         },
         "failed_scenarios": [
             {
