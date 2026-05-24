@@ -51,7 +51,7 @@ async def run_tests(
     - run_id: unique UUID for this run
     - exit_code: 0 = all passed, 1 = failures or errors
     - status: 'passed', 'failed', or 'stopped'
-    - summary: {total, passed, failed, errored, skipped, manual} scenario counts
+    - summary: {total, passed, failed, skipped} scenario counts
     - failed_scenarios: list of {name, feature, status, error_msg}
     - output_folder: path where reports were written (empty if no_report=True)
     """
@@ -147,9 +147,7 @@ def _build_result(result, dry_run: bool) -> dict:
             "total": summary.total,
             "passed": summary.passed,
             "failed": summary.failed,
-            "errored": summary.errored,
             "skipped": summary.skipped,
-            "manual": summary.manual,
         },
         "failed_scenarios": [
             {
