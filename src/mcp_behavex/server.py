@@ -45,6 +45,23 @@ BehaveX MCP server for running and inspecting BDD test suites.
 - Never use parallel_processes > 1 without also setting parallel_scheme.
 - For < 10 scenarios, skip parallel entirely (overhead exceeds benefit).
 
+## run_tests summary fields
+
+The summary dict returned by run_tests contains all scenario outcome counts.
+Always report ALL of them — never omit a field even if it is zero:
+
+- **passed** — scenario completed without errors
+- **failed** — assertion failure (step raised AssertionError)
+- **error** — unexpected exception during execution (not an assertion)
+- **skipped** — scenario was not executed (conditional skip, --stop, undefined step)
+- **untested** — scenario was collected but never reached execution
+- **manual** — scenario tagged @MANUAL or @WIP; not automated, never executes
+
+Invariant: passed + failed + error + skipped + untested + manual == total
+
+@MUTE scenarios are automatically excluded from every run — they will never
+appear in results.
+
 ## Tag syntax
 
 - Single tag: tags=["@smoke"]
