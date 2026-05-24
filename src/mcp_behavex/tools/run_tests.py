@@ -93,7 +93,9 @@ def run_tests(
             "total": summary.total,
             "passed": summary.passed,
             "failed": summary.failed,
+            "errored": summary.errored,
             "skipped": summary.skipped,
+            "manual": summary.manual,
         },
         "failed_scenarios": [
             {
